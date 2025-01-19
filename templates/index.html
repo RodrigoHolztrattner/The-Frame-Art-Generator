@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Frame Art Generator</title>
+    <link rel="stylesheet" href="../static/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>The Frame Art Generator</h1>
+
+        <!-- Connection Settings -->
+        <div class="section" id="connection-section">
+            <h2>Connection Settings</h2>
+            <div class="row">
+                <div class="form-group">
+                    <label for="ollama-ip">Ollama IP</label>
+                    <input type="text" id="ollama-ip" placeholder="127.0.0.1">
+                    <span id="ollama-status" class="status-indicator"></span>
+                </div>
+                <div class="form-group">
+                    <label for="ollama-port">Port</label>
+                    <input type="number" id="ollama-port" placeholder="8000">
+                </div>
+            </div>
+            <div class="row">
+                <div class="form-group">
+                    <label for="sd-ip">Stable Diffusion IP</label>
+                    <input type="text" id="sd-ip" placeholder="127.0.0.1">
+                    <span id="sd-status" class="status-indicator"></span>
+                </div>
+                <div class="form-group">
+                    <label for="sd-port">Port</label>
+                    <input type="number" id="sd-port" placeholder="7860">
+                </div>
+            </div>
+            <div class="row">
+                <div class="form-group">
+                    <label for="the-frame-ip">The Frame TV IP (optional)</label>
+                    <input type="text" id="the-frame-ip" placeholder="127.0.0.1">
+                    <span id="the-frame-status" class="status-indicator"></span>
+                </div>
+                <div class="form-group">
+                    <label for="the-frame-port">Port</label>
+                    <input type="number" id="the-frame-port" placeholder="8001">
+                </div>
+            </div>
+            <label><input type="checkbox" id="auto-connect">Auto connect on startup</label>
+            <button id="connect-btn">Connect</button>
+        </div>
+
+        <!-- The Frame TV Settings -->
+        <div class="section" id="the-frame-section" style="display: none;">
+            <h2>The Frame TV Settings</h2>
+            <div class="form-group">
+                <label><input type="checkbox" id="the-frame-auto-upload"> Enable Upload</label>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="the-frame-clear-old-art"> Clear Old Art on Upload</label>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="the-frame-force-art-mode"> Force Art Mode on Upload</label>
+            </div>
+            <div class="form-group">
+                <label for="the-frame-matte"> Matte</label>
+                <select id="the-frame-matte">
+                    <option value="none">none</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="the-frame-portrait-matte"> Portrait Matte</label>
+                <select id="the-frame-portrait-matte">
+                    <option value="none">none</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="the-frame-photo-filter"> Photo Filter</label>
+                <select id="the-frame-photo-filter">
+                    <option value="none">none</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Color Options (applies only when generating a new image)</label>
+                <div class="color-options-container" id="the-frame-color-options">
+                    <div class="color-option">
+                        <input type="checkbox" id="color-polar" value="polar">
+                        <label for="color-polar">Polar</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-antique" value="antique">
+                        <label for="color-antique">Antique</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-warm" value="warm">
+                        <label for="color-warm">Warm</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-natural" value="natural">
+                        <label for="color-natural">Natural</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-sand" value="sand">
+                        <label for="color-sand">Sand</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-seafoam" value="seafoam">
+                        <label for="color-seafoam">Sea Foam</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-sage" value="sage">
+                        <label for="color-sage">Sage</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-burgundy" value="burgundy">
+                        <label for="color-burgundy">Burgundy</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-navy" value="navy">
+                        <label for="color-navy">Navy</label>
+                    </div>
+                    <div class="color-option">
+                        <input type="checkbox" id="color-black" value="black">
+                        <label for="color-black">Black</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- MQTT Settings -->
+        <div class="section" id="mqtt-section" style="display: none;">
+            <h2>MQTT Settings</h2>
+            <label><input type="checkbox" id="mqtt-enable">Enable</label>
+            <div class="form-group">
+                <label for="mqtt-broker-ip">Broker IP</label>
+                <input type="text" id="mqtt-broker-ip" placeholder="127.0.0.1">
+                <span id="mqtt-status" class="status-indicator"></span>
+            </div>
+            <div class="form-group">
+                <label for="mqtt-port">Port</label>
+                <input type="number" id="mqtt-port" placeholder="1883">
+            </div>
+            <div class="form-group">
+                <label for="mqtt-user">User</label>
+                <input type="text" id="mqtt-user">
+            </div>
+            <div class="form-group">
+                <label for="mqtt-password">Password</label>
+                <input type="password" id="mqtt-password">
+            </div>
+            <div class="form-group">
+                <label for="mqtt-ha-prefix">Home Assistant Prefix</label>
+                <input type="text" id="mqtt-ha-prefix" placeholder="homeassistant">
+            </div>
+            <div class="form-group">
+                <label for="mqtt-client-id">Client ID</label>
+                <input type="text" id="mqtt-client-id">
+            </div>
+            <div class="form-group">
+                <label for="mqtt-discovery-prefix">Discovery Prefix</label>
+                <input type="text" id="mqtt-discovery-prefix" placeholder="homeassistant">
+            </div>
+            <div class="form-group">
+                <label for="mqtt-positive-prompt-instruction">Positive Prompt Instructions (use {command} to replace with input command)</label>
+                <textarea id="mqtt-positive-prompt-instruction" rows="3"></textarea>
+            </div>
+            <button id="mqtt-connect-btn">Connect</button>
+        </div>
+
+        <hr>
+
+        <!-- Model and Generation Settings -->
+        <div class="section" id="settings-section" style="display: none;">
+            <h2>Model and Generation Settings</h2>
+            <div class="form-group">
+                <label for="ollama-model">Ollama Model</label>
+                <select id="ollama-model"></select>
+            </div>
+            <div class="form-group">
+                <label for="sd-model">Stable Diffusion Model</label>
+                <select id="sd-model"></select>
+            </div>
+            <div class="form-group">
+                <label for="sd-lora">LoRA</label>
+                <select id="sd-lora">
+                    <option value="">None</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="sd-lora-weight">LoRA Weight</label>
+                <input type="number" id="sd-lora-weight" value="0.75" step="0.01">
+            </div>
+            <div class="row">
+                <div class="form-group">
+                    <label for="width">Image Width</label>
+                    <input type="number" id="width" value="1920">
+                </div>
+                <div class="form-group">
+                    <label for="height">Image Height</label>
+                    <input type="number" id="height" value="1080">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="steps">Steps</label>
+                <input type="number" id="steps" value="20">
+            </div>
+            <div class="form-group">
+                <label for="seed">Seed</label>
+                <input type="number" id="seed" value="-1">
+            </div>
+            <div class="form-group">
+                <label for="upscale">Upscale</label>
+                <select id="upscale">
+                    <option value="0">None</option>
+                    <option value="2">2x</option>
+                    <option value="4">4x</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="positive-prompt-instruction">Positive Prompt Instructions</label>
+                <textarea id="positive-prompt-instruction" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="negative-prompt">Negative Prompt</label>
+                <textarea id="negative-prompt" rows="3"></textarea>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="automatic-generation"> Enable Automatic Generation</label>
+            </div>
+            <div class="form-group">
+                <label for="automatic-generation-minutes">Auto-Generate Every (minutes)</label>
+                <input type="number" id="automatic-generation-minutes" value="120">
+            </div>
+            <button id="generate-btn">Generate Image</button>
+        </div>
+
+        <!-- Preview Section -->
+        <div class="section" id="preview-section" style="display: none;">
+            <h2>Generated Image</h2>
+            <div class="image-container">
+                <img id="generated-image" src="#" alt="Generated Image">
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/script.js"></script>
+</body>
+</html>

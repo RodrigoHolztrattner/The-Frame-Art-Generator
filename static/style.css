@@ -1,0 +1,119 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    color: #333;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+}
+
+h1, h2 {
+    color: #444;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 5px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+input, select, textarea, button {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+button {
+    background-color: #5cb85c;
+    color: white;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #4cae4c;
+}
+
+.row {
+    display: flex;
+    gap: 15px;
+}
+
+.row .form-group {
+    flex: 1;
+}
+
+.connect-btn {
+    width: auto;
+    padding: 10px 20px;
+}
+
+.reset-btn {
+    background-color: #c20808;
+    color: white;
+    cursor: pointer;
+}
+
+.reset-btn:hover {
+    background-color: #f10000;
+}
+
+.apply-btn {
+    background-color: #192297;
+    color: white;
+    cursor: pointer;
+}
+
+.apply-btn:hover {
+    background-color: #0a17cf;
+}
+
+.status-indicator {
+    margin-left: 10px;
+    font-weight: bold;
+}
+
+.status-indicator.connected {
+    color: green;
+}
+
+.status-indicator.disconnected {
+    color: red;
+}
+
+.image-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+#generated-image {
+    max-width: 800px;
+    max-height: 600px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+}
+
+.color-options-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+}
