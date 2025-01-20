@@ -753,8 +753,7 @@ def mqtt_on_message(client, userdata, msg):
 # MAIN #
 ########
 
-if __name__ == "__main__":
-
+def initialize_app():
     # Try loading global config, if it fails, create a default one
     if(not try_load_global_config()):
         log(LogType.WARNING, "MQTT", "Failed to load global config, creating default config")
@@ -766,6 +765,13 @@ if __name__ == "__main__":
             try_connect_mqtt(True)
             refresh_periodic_generate()
 
+def create_app():
+    initialize_app()
     server_thread = threading.Thread(target=start_server, daemon=True)
     server_thread.start()
+    return app
+
+app = create_app()
+
+if __name__ == "__main__":
     app.run(debug=True, use_reloader=False)
