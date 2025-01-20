@@ -244,7 +244,9 @@ def try_upload_image(image_buffer):
             try:
                 art_available = tv.art().available()
                 log(LogType.VERBOSE, "The Frame", f"try_get_current_art_content() non filtered contents are: {art_available}")
-                return [item['content_id'] for item in art_available if item.get('content_type') == 'mobile']
+                filtered_art_content = [item['content_id'] for item in art_available if item.get('content_type') == 'mobile']
+                log(LogType.VERBOSE, "The Frame", f"try_get_current_art_content() filtered contents are: {filtered_art_content}")
+                return filtered_art_content
             except Exception as e:
                 log(LogType.ERROR, "The Frame", f"try_get_current_art_content() resulted in exception: {e}")
                 return []
@@ -275,7 +277,9 @@ def try_upload_image(image_buffer):
         previous_mobile_content_ids = try_get_current_art_content(the_frame_connector)
 
         try:
-            target_content_id = the_frame_connector.art().upload(image_buffer.getvalue(), matte='none')
+            log(LogType.VERBOSE, "The Frame", "Begin first upload attempt")
+            
+            target_content_id = the_frame_connector.art().upload(image_buffer.getvalue(), matte='none', portrait_matte='none')
 
             log(LogType.VERBOSE, "The Frame", f"After upload content ID: {target_content_id}")
 
@@ -322,12 +326,12 @@ def try_change_matte(content_id = None):
         try:
             log(LogType.INFO, f"The Frame", f"Matte selection: matte[{target_the_frame_matte}]")
 
-            the_frame_connector.art().change_matte(content_id, matte_id = target_the_frame_matte)
+            the_frame_connector.art().change_matte(content_id, matte_id = target_the_frame_matte, portrait_matte='none')
 
             return True
         except Exception as e:
             try:
-                the_frame_connector.art().change_matte(content_id, matte='none', portrait_matte='none')
+                the_frame_connector.art().change_matte(content_id, matte_id='none', portrait_matte='none')
                 return False
             except Exception as e:
                 log(LogType.WARNING, f"The Frame", "Failed to change matte (this will not prevent any previous upload, but your image might be using the wrong matte option)")
