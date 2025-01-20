@@ -277,7 +277,7 @@ def try_upload_image(image_buffer):
         previous_mobile_content_ids = try_get_current_art_content(the_frame_connector)
 
         try:
-            log(LogType.VERBOSE, "The Frame", "Begin first upload attempt")
+            log(LogType.VERBOSE, "The Frame", "Begin upload attempt")
             
             target_content_id = the_frame_connector.art().upload(image_buffer.getvalue(), matte='none', portrait_matte='none')
 
@@ -302,6 +302,7 @@ def try_upload_image(image_buffer):
                 try_select_art_image(target_content_id)
                 try_delete_previous_images(previous_mobile_content_ids)
             else:
+                log(LogType.ERROR, "The Frame", "TV upload failed")
                 return None
 
         log(LogType.INFO, "The Frame", "TV upload done")
@@ -379,26 +380,34 @@ def process_image_request(use_mqtt_prompt=False):
             mqtt_update_sensor("status", "Uploading Image")
 
             def handle_upload_failure(error_msg="Unknown error"):
-                log(LogType.ERROR, "System", f"Failed to upload image with error: {error_msg}, refreshing all connections and attempting for a second time after 6 seconds")
+                log(LogType.ERROR, "The Frame", f"Failed to upload image with error: {error_msg}, refreshing all connections and attempting for a second time after 6 seconds")
                 time.sleep(2)
+                log(LogType.VERBOSE, "The Frame", "Reseting connections for upload reattempt")
                 try_connect(True)
                 time.sleep(2)
+                log(LogType.VERBOSE, "The Frame", "Refreshing periodic generation in case it was active")
                 refresh_periodic_generate()
                 time.sleep(2)
+                log(LogType.VERBOSE, "The Frame", "Attempting to upload image again")
                 return try_upload_image(image_buffer)
 
             uploaded_content_id = None
             try:
                 uploaded_content_id = try_upload_image(image_buffer)
-                if uploaded_content_id is None:
+                if not uploaded_content_id:
+                    log(LogType.VERBOSE, "The Frame", "First upload attempt failed graciously, trying a second (and last) time")
                     uploaded_content_id = handle_upload_failure("First upload attempt failed (returned None)")
             except Exception as e:
+                log(LogType.VERBOSE, "The Frame", f"First upload attempt failed with exception {e}, trying a second (and last) time")
                 uploaded_content_id = handle_upload_failure(str(e))
 
             if uploaded_content_id:
+                log(LogType.VERBOSE, "The Frame", "Running matte change operation")
                 mqtt_update_sensor("status", "Changing Image Matte")
                 try_change_matte(uploaded_content_id)
-            
+            else:
+                log(LogType.VERBOSE, "The Frame", "Reached the end of the image process function without an uploadded content")
+
         mqtt_update_sensor("image", {"image": base64_image})
 
         mqtt_update_sensor("status", "Idle")
@@ -421,31 +430,36 @@ def periodic_generate(minutes, stop_event):
 
 def refresh_periodic_generate():
     global global_config, generate_task_thread, generate_stop_event
+    log(LogType.VERBOSE, "System", f"refresh_periodic_generate() called with thread: {threading.current_thread()} | Generate task thread: {generate_task_thread}")
 
-    # If we're being called from within the generate task thread
-    if threading.current_thread() is generate_task_thread:
+    try:
+        # If we're being called from within the generate task thread
+        if threading.current_thread() is generate_task_thread:
+            if global_config.generation_auto_generate:
+                # Reset stop event for next execution
+                generate_stop_event.clear()
+                # Start new thread for next periodic execution
+                generate_task_thread = threading.Thread(target=periodic_generate, 
+                    args=(global_config.generation_auto_generate_minutes, generate_stop_event))
+                generate_task_thread.daemon = True
+                generate_task_thread.start()
+            return
+        
+        # If a thread is already running, stop it
+        if generate_task_thread and generate_task_thread.is_alive():
+            generate_stop_event.set()  # Signal the thread to stop
+            generate_task_thread.join()  # Wait for the thread to finish
+
         if global_config.generation_auto_generate:
-            # Reset stop event for next execution
+            # Reset the stop event for the new thread
             generate_stop_event.clear()
-            # Start new thread for next periodic execution
-            generate_task_thread = threading.Thread(target=periodic_generate, 
-                args=(global_config.generation_auto_generate_minutes, generate_stop_event))
-            generate_task_thread.daemon = True
+            # Create and start a new thread for periodic execution
+            generate_task_thread = threading.Thread(target=periodic_generate, args=(global_config.generation_auto_generate_minutes, generate_stop_event))
+            generate_task_thread.daemon = True  # Allows the program to exit when the main thread ends
             generate_task_thread.start()
-        return
-    
-    # If a thread is already running, stop it
-    if generate_task_thread and generate_task_thread.is_alive():
-        generate_stop_event.set()  # Signal the thread to stop
-        generate_task_thread.join()  # Wait for the thread to finish
+    except Exception as e:
+        log(LogType.ERROR, "System", f"refresh_periodic_generate() failed with exception: {e}")
 
-    if global_config.generation_auto_generate:
-        # Reset the stop event for the new thread
-        generate_stop_event.clear()
-        # Create and start a new thread for periodic execution
-        generate_task_thread = threading.Thread(target=periodic_generate, args=(global_config.generation_auto_generate_minutes, generate_stop_event))
-        generate_task_thread.daemon = True  # Allows the program to exit when the main thread ends
-        generate_task_thread.start()
 
 def apply_updated_global_config(new_global_config: GlobalConfig):
     global global_config
