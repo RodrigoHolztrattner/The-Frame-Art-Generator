@@ -1,5 +1,8 @@
+from enum import Enum
+from colorama import init, Fore
 import asyncio
 import base64
+from enum import Enum
 from io import BytesIO
 import random
 import sys
@@ -42,24 +45,57 @@ mqtt_client = None
 # BACKEND #
 ###########
 
+# Initialize colorama for Windows color support
+init()
+
+class LogType(Enum):
+    VERBOSE = "VERBOSE"
+    INFO = "INFO"
+    WARNING = "WARNING" 
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+    @classmethod
+    def from_string(cls, level_str: str) -> 'LogType':
+        try:
+            return cls[level_str.upper()]
+        except KeyError:
+            return cls.WARNING
+
+def log(type: LogType, domain: str, message: str):
+    current_level = LogType.from_string(os.getenv('LOG_LEVEL', 'WARNING'))
+    
+    if type.value >= current_level.value:
+        colors = {
+            LogType.VERBOSE: Fore.WHITE,
+            LogType.INFO: Fore.BLUE,
+            LogType.WARNING: Fore.YELLOW,
+            LogType.ERROR: Fore.RED,
+            LogType.CRITICAL: Fore.MAGENTA
+        }
+        color = colors.get(type, Fore.WHITE)
+        print(f"{color}[{type.name}] {domain} - {message}{Fore.RESET}")
+
 def try_load_global_config():
     global global_config
-
     try:
         with open("config/config.json", "r") as f:
             global_config.load_from_json(json.load(f))
+            log(LogType.VERBOSE, "System", f"Global config loaded from existing JSON file, contents: {global_config.get_as_json()}")
             return True
     except Exception as e:
+        log(LogType.VERBOSE, "System", f"try_load_global_config() failed with exception: {e}")
         return False
     
 def try_save_global_config():
     global global_config
-
     try:
         with open("config/config.json", "w") as f:
             json.dump(global_config.get_as_json(), f, indent=4)
+            log(LogType.VERBOSE, "System", f"Global config saved to JSON file, contents: {global_config.get_as_json()}")
             return True
     except Exception as e:
+        log(LogType.VERBOSE, "System", f"try_save_global_config() failed with exception: {e}")
         return False
     
 def create_default_global_config():
@@ -67,8 +103,10 @@ def create_default_global_config():
     try:
         with open("config/config.json", "w") as f:
             json.dump(local_global_config.get_as_json(), f, indent=4)
+            log(LogType.VERBOSE, "System", "Empty global config file created")
             return True
     except Exception as e:
+        log(LogType.VERBOSE, "System", f"create_default_global_config() failed with exception: {e}")
         return False
     
 def disconnect_backend():
@@ -79,6 +117,7 @@ def disconnect_backend():
     ollama_connector = OllamaConnector()
     sd_connector = StableDiffusionConnector()
     the_frame_connector = None
+    log(LogType.VERBOSE, "System", "Backend disconnected")
 
 def disconnect_mqtt():
     global global_config, mqtt_client
@@ -87,6 +126,7 @@ def disconnect_mqtt():
         mqtt_client.loop_stop()
         mqtt_client.disconnect()
         mqtt_client = None
+        log(LogType.VERBOSE, "System", "MQTT disconnected")
 
 def try_connect(force_refresh: bool):
     global global_config, ollama_connector, sd_connector, the_frame_connector
@@ -96,13 +136,18 @@ def try_connect(force_refresh: bool):
 
     if not ollama_connector.is_connected():
         ollama_connector.connect(global_config.ollama_ip, str(global_config.ollama_port))
+        log(LogType.VERBOSE, "System", f"Ollama connect attempt, new status: {ollama_connector.is_connected()}")
         
     if not sd_connector.is_connected():
         sd_connector.connect(global_config.sd_ip, str(global_config.sd_port))
+        log(LogType.VERBOSE, "System", f"SD connect attempt, new status: {sd_connector.is_connected()}")
 
     if global_config.the_frame_ip and not the_frame_connector:
         token_file = os.path.dirname(os.path.realpath(__file__)) + '/temp/tv-token.txt'
         the_frame_connector = SamsungTVWS(host=global_config.the_frame_ip, port=global_config.the_frame_port, token_file=token_file) # 8001 for unsecured websocket
+        log(LogType.VERBOSE, "System", f"The Frame connect attempt, new status: {bool(not global_config.the_frame_ip or the_frame_connector)}")
+
+    log(LogType.VERBOSE, "System", f"Connecting backend, force refresh is set to {force_refresh}, Ollama status: {ollama_connector.is_connected()}, SD status: {sd_connector.is_connected()}, The Frame status: {bool(not global_config.the_frame_ip or the_frame_connector)}")
 
     return ollama_connector.is_connected() and sd_connector.is_connected() and bool(not global_config.the_frame_ip or the_frame_connector)
 
@@ -110,7 +155,7 @@ def try_connect_mqtt(force_refresh: bool):
     global mqtt_client, global_config
 
     if force_refresh or not global_config.mqtt_enable:
-        print("[MQTT] - Reseting...")
+        log(LogType.INFO, "MQTT", "Reseting...")
         disconnect_mqtt()
 
     are_configs_valid = global_config.mqtt_broker_ip and global_config.mqtt_port
@@ -124,11 +169,13 @@ def try_connect_mqtt(force_refresh: bool):
         mqtt_client.on_connect = mqtt_on_connect
         mqtt_client.on_message = mqtt_on_message
 
-        print("[MQTT] - Connecting...")
+        log(LogType.INFO, "MQTT", "Connecting...")
         mqtt_client.connect(global_config.mqtt_broker_ip, global_config.mqtt_port, 60)
 
-        print("[MQTT] - Starting loop...")
+        log(LogType.INFO, "MQTT", "Starting loop...")
         mqtt_client.loop_start()
+
+    log(LogType.VERBOSE, "System", f"Connecting MQTT, force refresh is set to {force_refresh}, MQTT status: {bool(mqtt_client)}")
 
 def try_generate_image(use_mqtt_prompt=False):
     global global_config, ollama_connector, sd_connector
@@ -141,9 +188,9 @@ def try_generate_image(use_mqtt_prompt=False):
         if global_config.mqtt_positive_command:
             ollama_message = global_config.mqtt_positive_instruction.replace("{command}", global_config.mqtt_positive_command)
         else:
-            print("[MQTT] - No positive command given by the substring {command} was found, using default prompt instructions")
+            log(LogType.WARNING, "MQTT", "No positive command given by the substring {command} was found, using default prompt instructions")
     elif use_mqtt_prompt:
-        print("[MQTT] - No positive instruction given, using default prompt instructions")
+        log(LogType.WARNING, "MQTT", "No positive instruction given, using default prompt instructions")
         
     # Generate positive prompt using Ollama
     generated_prompt = ollama_connector.send_message(
@@ -153,7 +200,9 @@ def try_generate_image(use_mqtt_prompt=False):
     mqtt_update_sensor("status", "Generating Image")
 
     # Generate image using Stable Diffusion
+    log(LogType.VERBOSE, "System", f"Setting SD model to {global_config.sd_model}")
     sd_connector.set_model(global_config.sd_model)
+    log(LogType.VERBOSE, "System", "Issuing SD request for txt2img")
     sd_generate_response = sd_connector.txt2img(
         prompt=generated_prompt,
         negative_prompt=global_config.generation_negative_prompt,
@@ -168,6 +217,7 @@ def try_generate_image(use_mqtt_prompt=False):
     )
 
     if global_config.image_upscale and global_config.image_upscale > 0:
+        log(LogType.VERBOSE, "System", "Image upscaling requested, issuing SD request")
         sd_generate_response = sd_connector.upscale_image(
             sd_generate_response.image, 
             global_config.image_upscale, 
@@ -187,13 +237,18 @@ def try_upload_image(image_buffer):
     if the_frame_connector.art().supported():
 
         if global_config.the_frame_force_art_mode and not the_frame_connector.art().get_artmode():
-            print("The Frame - Forcing art mode")
+            log(LogType.INFO, "The Frame", "Forcing art mode")
             the_frame_connector.art().set_artmode(True)
 
         def try_get_current_art_content(tv):
-            art_available = tv.art().available()
-            return [item['content_id'] for item in art_available if item.get('content_type') == 'mobile']
-        
+            try:
+                art_available = tv.art().available()
+                log(LogType.VERBOSE, "The Frame", f"try_get_current_art_content() non filtered contents are: {art_available}")
+                return [item['content_id'] for item in art_available if item.get('content_type') == 'mobile']
+            except Exception as e:
+                log(LogType.ERROR, "The Frame", f"try_get_current_art_content() resulted in exception: {e}")
+                return []
+            
         def try_delete_previous_images(previous_image_list):
             global global_config
             if not global_config.the_frame_clear_old_art:
@@ -201,34 +256,42 @@ def try_upload_image(image_buffer):
             
             try:
                 if previous_image_list:
-                    print(f"The Frame - Filtering existing art to be deleted: {previous_image_list}")
+                    log(LogType.INFO, "The Frame", f"Filtering existing art to be deleted: {previous_image_list}")
                     the_frame_connector.art().delete_list(previous_image_list)
             except Exception as e:
-                print("The Frame - Failed to delete old art, this shouldn't cause any issues but previous images will linger til next art update")
+                log(LogType.WARNING, "The Frame", f"Failed to delete old art, this shouldn't cause any issues but previous images will linger til next art update, exception: {e}")
                 
         def try_select_art_image(entry_id):
             if entry_id:
-                print(f"The Frame - Selecting image {entry_id}")
-                the_frame_connector.art().select_image(entry_id)
+                try:
+                    the_frame_connector.art().select_image(entry_id)
+                    log(LogType.INFO, "The Frame", f"Image {entry_id} selected")
+                except Exception as e:
+                    log(LogType.ERROR, "The Frame", f"Failed to select image {entry_id}, exception: {e}")
+                    pass
 
-        print("The Frame - Uploading image to TV")
+        log(LogType.INFO, "The Frame", "Uploading image to TV")
 
         previous_mobile_content_ids = try_get_current_art_content(the_frame_connector)
 
         try:
             target_content_id = the_frame_connector.art().upload(image_buffer.getvalue(), matte='none', portrait_matte='none')
 
+            log(LogType.VERBOSE, "The Frame", f"After upload content ID: {target_content_id}")
+
             try_select_art_image(target_content_id)
             try_delete_previous_images(previous_mobile_content_ids)
 
         except Exception as e:
+
+            log(LogType.VERBOSE, "The Frame", f"Upload, art selection or old art deletion failed with exception: {e}")
 
             # Sometimes the upload is successfull but it still throws an error, in that case see if we can get the image ID
             # and set it directly
             new_mobile_content_ids = try_get_current_art_content(the_frame_connector)
             remainder_mobile_content_ids = [item for item in new_mobile_content_ids if item not in previous_mobile_content_ids]
 
-            print(f"The Frame - Trying to recover from error, current image contents: {new_mobile_content_ids} - New content: {remainder_mobile_content_ids}")
+            log(LogType.WARNING, "The Frame", f"Trying to recover from error, current image contents: {new_mobile_content_ids} - New content: {remainder_mobile_content_ids}")
 
             if remainder_mobile_content_ids:
                 target_content_id = str(remainder_mobile_content_ids[0])
@@ -237,7 +300,9 @@ def try_upload_image(image_buffer):
             else:
                 return None
 
-        print("The Frame - TV upload done")
+        log(LogType.INFO, "The Frame", "TV upload done")
+    else:
+        log(LogType.VERBOSE, "The Frame", "Art mode not supported")
 
     return target_content_id
 
@@ -247,7 +312,7 @@ def try_change_matte(content_id = None):
     if not content_id:
         content_id = str(the_frame_connector.art().get_current().get('content_id', None))
 
-    print(f"The Frame - Changing matte for current selection: {content_id}")
+    log(LogType.INFO, "The Frame", f"Changing matte for current selection: {content_id}")
 
     if content_id and ((global_config.the_frame_matte and global_config.the_frame_matte != "none") or (global_config.the_frame_portrait_matte and global_config.the_frame_portrait_matte != "none")):
         
@@ -261,7 +326,7 @@ def try_change_matte(content_id = None):
             if target_the_frame_portrait_matte == "random":
                 target_the_frame_portrait_matte = random.choice([matte["matte_type"] for matte in the_frame_connector.art().get_matte_list()]) 
         
-            print(f"The Frame - Matte selection: matte[{target_the_frame_matte}] | portrait[{target_the_frame_portrait_matte}]")
+            log(LogType.INFO, f"The Frame", f"Matte selection: matte[{target_the_frame_matte}] | portrait[{target_the_frame_portrait_matte}]")
 
             the_frame_connector.art().change_matte(content_id, target_the_frame_matte, target_the_frame_portrait_matte)
 
@@ -271,7 +336,7 @@ def try_change_matte(content_id = None):
                 the_frame_connector.art().change_matte(content_id, matte='none', portrait_matte='none')
                 return False
             except Exception as e:
-                print("The Frame - Failed to change matte (this will not prevent any previous upload, but your image might be using the wrong matte option)")
+                log(LogType.WARNING, f"The Frame", "Failed to change matte (this will not prevent any previous upload, but your image might be using the wrong matte option)")
     return False
 
 def try_change_photo_filter(content_id = None):   
@@ -281,7 +346,7 @@ def try_change_photo_filter(content_id = None):
     if not content_id:
         content_id = str(the_frame_connector.art().get_current().get('content_id', None))
 
-    print(f"The Frame - Changing photo filter for current selection: {content_id}")
+    log(LogType.INFO, "The Frame", f"Changing photo filter for current selection: {content_id}")
 
     return False
 
@@ -315,14 +380,22 @@ def process_image_request(use_mqtt_prompt=False):
 
             mqtt_update_sensor("status", "Uploading Image")
 
+            def handle_upload_failure(error_msg="Unknown error"):
+                log(LogType.ERROR, "System", f"Failed to upload image with error: {error_msg}, refreshing all connections and attempting for a second time after 6 seconds")
+                time.sleep(2)
+                try_connect(True)
+                time.sleep(2)
+                refresh_periodic_generate()
+                time.sleep(2)
+                return try_upload_image(image_buffer)
+
             uploaded_content_id = None
             try:
                 uploaded_content_id = try_upload_image(image_buffer)
+                if uploaded_content_id is None:
+                    uploaded_content_id = handle_upload_failure("First upload attempt failed (returned None)")
             except Exception as e:
-                print(f"Process - Failed to upload image with error {e}, refreshing all connections and attempting for a second time")
-                try_connect(True)
-                refresh_periodic_generate()
-                uploaded_content_id = try_upload_image(image_buffer)
+                uploaded_content_id = handle_upload_failure(str(e))
 
             if uploaded_content_id:
                 mqtt_update_sensor("status", "Changing Image Matte")
@@ -336,7 +409,7 @@ def process_image_request(use_mqtt_prompt=False):
 
         return base64_image
     except Exception as e:
-        print(f"Process - Failed to process image request with error {e}")
+        log(LogType.ERROR, "System", f"Failed to process image request with error {e}")
         mqtt_update_sensor("status", "Error")
         block_requests = False
         return None
@@ -413,17 +486,17 @@ def start_server():
 
 @app.route("/")
 def index():
-    print("Frontend -> index()")
+    log(LogType.VERBOSE, "Frontend", "index()")
     return render_template("index.html")
 
 @app.route("/config", methods=["GET", "POST"])
 def config_handler():
     global global_config
     if request.method == "GET": 
-        print("Frontend -> config_handler() - GET")
+        log(LogType.VERBOSE, "Frontend", "config_handler() - GET")
         return jsonify(global_config.get_as_json())
     elif request.method == "POST":
-        print("Frontend -> config_handler() - POST")
+        log(LogType.VERBOSE, "Frontend", "config_handler() - POST")
         new_global_config = GlobalConfig()
         new_global_config.load_from_json(request.json)
         apply_updated_global_config(new_global_config)
@@ -432,7 +505,7 @@ def config_handler():
 @app.route("/progress", methods=["GET"])
 def get_current_progress():
     global sd_connector
-    print("Frontend -> get_current_progress()")
+    log(LogType.VERBOSE, "Frontend", "get_current_progress()")
     try:
         current_progress = sd_connector.get_progress()
         return jsonify({"progress": current_progress})
@@ -442,31 +515,31 @@ def get_current_progress():
 @app.route("/status/ollama", methods=["GET"])
 def ollama_status():
     global ollama_connector
-    print("Frontend -> ollama_status()")
+    log(LogType.VERBOSE, "Frontend", "ollama_status()")
     return jsonify({"status": "connected"}) if ollama_connector and ollama_connector.is_connected() else (jsonify({"status": "disconnected"}), 400)
 
 @app.route("/status/sd", methods=["GET"])
 def sd_status():
     global sd_connector
-    print("Frontend -> sd_status()")
+    log(LogType.VERBOSE, "Frontend", "sd_status()")
     return jsonify({"status": "connected"}) if sd_connector and sd_connector.is_connected() else (jsonify({"status": "disconnected"}), 400)
 
 @app.route("/status/the_frame", methods=["GET"])
 def the_frame_status():
     global the_frame_connector
-    print("Frontend -> the_frame_status()")
+    log(LogType.VERBOSE, "Frontend", "the_frame_status()")
     return jsonify({"status": "connected"}) if the_frame_connector else (jsonify({"status": "disconnected"}), 400)
 
 @app.route("/status/mqtt", methods=["GET"])
 def mqtt_status():
     global mqtt_client
-    print("Frontend -> mqtt_status()")
+    log(LogType.VERBOSE, "Frontend", "mqtt_status()")
     return jsonify({"status": "connected"}) if mqtt_client else (jsonify({"status": "disconnected"}), 400)
 
 @app.route("/ollama/models", methods=["GET"])
 def get_ollama_models():
     global ollama_connector
-    print("Frontend -> get_ollama_models()")
+    log(LogType.VERBOSE, "Frontend", "get_ollama_models()")
     try:
         models = ollama_connector.query_models()
         return jsonify({"models": models})
@@ -476,7 +549,7 @@ def get_ollama_models():
 @app.route("/sd/models", methods=["GET"])
 def get_sd_models():
     global sd_connector
-    print("Frontend -> get_sd_models()")
+    log(LogType.VERBOSE, "Frontend", "get_sd_models()")
     try:
         models = sd_connector.query_models()
         return jsonify({"models": models})
@@ -486,7 +559,7 @@ def get_sd_models():
 @app.route("/sd/loras", methods=["GET"])
 def get_sd_loras():
     global sd_connector
-    print("Frontend -> get_sd_loras()")
+    log(LogType.VERBOSE, "Frontend", "get_sd_loras()")
     try:
         loras = sd_connector.query_loras()
         return jsonify({"loras": loras})
@@ -497,13 +570,13 @@ def get_sd_loras():
 def the_frame_matte():
     global the_frame_connector
     if request.method == "GET":
-        print("Frontend -> the_frame_matte() - GET")
+        log(LogType.VERBOSE, "Frontend", "the_frame_matte() - GET")
         try:
             return jsonify({"mattes": [matte["matte_type"] for matte in the_frame_connector.art().get_matte_list()]})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
     elif request.method == "POST":
-        print("Frontend -> the_frame_matte() - POST")
+        log(LogType.VERBOSE, "Frontend", "the_frame_matte() - POST")
 
         if try_change_matte():
             return jsonify({"status": "success"})
@@ -514,13 +587,13 @@ def the_frame_matte():
 def the_frame_photo_filter():
     global the_frame_connector
     if request.method == "GET":
-        print("Frontend -> the_frame_photo_filter() - GET")
+        log(LogType.VERBOSE, "Frontend", "the_frame_photo_filter() - GET")
         try:
             return jsonify({"filters": [filter["filter_id"] for filter in the_frame_connector.art().get_photo_filter_list()]})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
     elif request.method == "POST":
-        print("Frontend -> the_frame_photo_filter() - POST")
+        log(LogType.VERBOSE, "Frontend", "the_frame_photo_filter() - POST")
 
         if try_change_photo_filter():
             return jsonify({"status": "success"})
@@ -529,7 +602,7 @@ def the_frame_photo_filter():
 
 @app.route("/generate", methods=["POST"])
 def generate():
-    print("Frontend -> generate()")
+    log(LogType.VERBOSE, "Frontend", "generate()")
     try:
         # First, reset any periodic generate to avoid performing multiple requests at once
         refresh_periodic_generate()
@@ -544,7 +617,7 @@ def generate():
 @app.route("/connect_backend", methods=["POST"])
 def connect_backend_providers():
     global ollama_connector, sd_connector
-    print("Frontend -> connect()")
+    log(LogType.VERBOSE, "Frontend", "connect_backend_providers()")
     try:
         if not ollama_connector or not sd_connector or not ollama_connector.is_connected() or not sd_connector.is_connected():
             if try_connect(True):
@@ -558,7 +631,7 @@ def connect_backend_providers():
 @app.route("/connect_mqtt", methods=["POST"])
 def connect_mqtt_provider():
     global mqtt_client
-    print("Frontend -> connect()")
+    log(LogType.VERBOSE, "Frontend", "connect_mqtt_provider()")
     try:
         if not mqtt_client:
             try_connect_mqtt(True)
@@ -568,7 +641,7 @@ def connect_mqtt_provider():
     
 @app.route("/disconnect_backend", methods=["POST"])
 def disconnect_backend_providers():
-    print("Frontend -> disconnect()")
+    log(LogType.VERBOSE, "Frontend", "disconnect_backend_providers()")
     try:
         disconnect_backend()
         return jsonify({"status": "success"})
@@ -577,7 +650,7 @@ def disconnect_backend_providers():
 
 @app.route("/disconnect_mqtt", methods=["POST"])
 def disconnect_mqtt_provider():
-    print("Frontend -> disconnect()")
+    log(LogType.VERBOSE, "Frontend", "disconnect_mqtt_provider()")
     try:
         disconnect_mqtt()
         return jsonify({"status": "success"})
@@ -636,6 +709,7 @@ def mqtt_publish_discovery():
 
 def mqtt_update_sensor(sensor_id, value):
     global global_config, mqtt_client
+    log(LogType.VERBOSE, "MQTT", "mqtt_update_sensor()")
 
     if not mqtt_client:
         return
@@ -652,22 +726,25 @@ def mqtt_update_sensor(sensor_id, value):
 
 def mqtt_handle_image_generation(text):
     global global_config
+    log(LogType.VERBOSE, "MQTT", "mqtt_handle_image_generation()")
     global_config.mqtt_positive_command = text
     process_image_request(True)
 
 # MQTT Callbacks
 def mqtt_on_connect(client, userdata, flags, rc, properties=None):
     global global_config
-    print(f"[MQTT] - Connected to broker with result code {rc}")
+    log(LogType.VERBOSE, "MQTT", "mqtt_on_connect()")
+    log(LogType.INFO, "MQTT", f"Connected to broker with result code {rc}")
     client.subscribe(f"{global_config.mqtt_ha_prefix}/text/image_generation/set")
     mqtt_publish_discovery()
     mqtt_update_sensor("status", "Idle")  # Initial status
     mqtt_update_sensor("progress", {"progress": 100}) # Initial status
-    print("[MQTT] - Discovery messages published and ready.")
+    log(LogType.INFO, "MQTT", "Discovery messages published and ready")
 
 def mqtt_on_message(client, userdata, msg):
     global global_config
-    print(f"[MQTT] - Message received: {msg.topic} -> {msg.payload.decode()}")
+    log(LogType.VERBOSE, "MQTT", "mqtt_on_message()")
+    log(LogType.INFO, "MQTT", f"Message received: {msg.topic} -> {msg.payload.decode()}")
     if msg.topic == f"{global_config.mqtt_ha_prefix}/text/image_generation/set":
         text = msg.payload.decode()
         threading.Thread(target=mqtt_handle_image_generation, args=(text,)).start()
@@ -680,9 +757,9 @@ if __name__ == "__main__":
 
     # Try loading global config, if it fails, create a default one
     if(not try_load_global_config()):
-        print("System -> Failed to load global config, creating default config")
+        log(LogType.WARNING, "MQTT", "Failed to load global config, creating default config")
         if(not create_default_global_config()):
-            print("System -> Failed to create default config")
+            log(LogType.ERROR, "MQTT", "Failed to create default config")
     # On successful load, try to connect to the services if auto_connect was enabled
     elif global_config.auto_connect:
         if try_connect(True):

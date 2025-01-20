@@ -24,6 +24,7 @@ EXPOSE 5000
 # Set environment variable to run Flask on all interfaces
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
+ENV LOG_LEVEL=WARNING
 
 # Run the application
 CMD ["python", "-u", "-m", "flask", "run", "--host=0.0.0.0"]
