@@ -19,7 +19,6 @@ class GlobalConfig:
         self.the_frame_clear_old_art = False
         self.the_frame_force_art_mode = True
         self.the_frame_matte = None
-        self.the_frame_portrait_matte = None
 
         self.auto_connect = False
 
@@ -69,7 +68,6 @@ class GlobalConfig:
         self.the_frame_clear_old_art = json.get("the_frame_clear_old_art", False)
         self.the_frame_force_art_mode = json.get("the_frame_force_art_mode", False)
         self.the_frame_matte = json.get("the_frame_matte", "none")
-        self.the_frame_portrait_matte = json.get("the_frame_portrait_matte", None)
 
         self.auto_connect = json.get("auto_connect", False)
 
@@ -117,7 +115,6 @@ class GlobalConfig:
             "the_frame_clear_old_art": self.the_frame_clear_old_art,
             "the_frame_force_art_mode": self.the_frame_force_art_mode,
             "the_frame_matte": self.the_frame_matte,
-            "the_frame_portrait_matte": self.the_frame_portrait_matte,
             "auto_connect": self.auto_connect,
             "image_width": self.image_width,
             "image_height": self.image_height,

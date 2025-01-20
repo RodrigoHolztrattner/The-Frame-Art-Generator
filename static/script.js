@@ -27,7 +27,6 @@ const theFrameAutoUploadCheckbox = document.getElementById('the-frame-auto-uploa
 const theFramecloarOldArtCheckbox = document.getElementById('the-frame-clear-old-art'); // Checkbox
 const theFrameForceArtModeCheckbox = document.getElementById('the-frame-force-art-mode'); // Checkbox
 const theFrameMatteSelect = document.getElementById('the-frame-matte'); // Select
-const theFramePortraitMatteSelect = document.getElementById('the-frame-portrait-matte'); // Select
 const theFramePhotoFilterSelect = document.getElementById('the-frame-photo-filter'); // Select
 const theFrameColorOptionsContainer = document.getElementById('the-frame-color-options'); // Container
 
@@ -191,7 +190,6 @@ async function initializeFromBackendConfig() {
         theFramecloarOldArtCheckbox.checked = config.the_frame_clear_old_art;
         theFrameForceArtModeCheckbox.checked = config.the_frame_force_art_mode;
         theFrameMatteSelect.value = config.the_frame_matte;
-        theFramePortraitMatteSelect.value = config.the_frame_portrait_matte;
 
         mqttEnableCheckbox.checked = config.mqtt_enable;
         mqttBrokerInput.value = config.mqtt_broker_ip;
@@ -230,7 +228,6 @@ async function initializeFromBackendConfig() {
 
             // Set these values again in case fetchMatte() just added their entries into the selector widgets
             theFrameMatteSelect.value = config.the_frame_matte;
-            theFramePortraitMatteSelect.value = config.the_frame_color_list;
             // theFramePhotoFilterSelect = config.the_frame_photo_filter;
             // theFrameColorOptionsContainer TODO: Need to convert list into checkbox selection
         }
@@ -258,7 +255,6 @@ async function updateBackendConfig() {
         the_frame_clear_old_art: theFramecloarOldArtCheckbox.checked,
         the_frame_force_art_mode: theFrameForceArtModeCheckbox.checked,
         the_frame_matte: theFrameMatteSelect.value,
-        the_frame_portrait_matte: theFramePortraitMatteSelect.value,
         // the_frame_photo_filter: theFramePhotoFilterSelect.value,
         // the_frame_color_list: await getSelectedColorOptions(),
 
@@ -349,11 +345,6 @@ const fetchMatte = async () => {
         
         // Regular matte select
         theFrameMatteSelect.innerHTML = `<option value="none">none</option>` +
-            filteredMattes.map(matte => `<option value="${matte}">${matte}</option>`).join('');
-        
-        // Portrait matte select with additional 'random' option
-        theFramePortraitMatteSelect.innerHTML = `<option value="none">none</option>` +
-            `<option value="random">random</option>` +
             filteredMattes.map(matte => `<option value="${matte}">${matte}</option>`).join('');
 
     } catch (error) {
@@ -491,7 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {initializeFromBackend
 
 
 // If any of the portrait options were changed, update the backend configuration
-[theFrameMatteSelect, theFramePortraitMatteSelect].forEach((element) => {
+[theFrameMatteSelect].forEach((element) => {
     element.addEventListener('input', async () => {
         await updateBackendConfig()
         await fetch('/the_frame/matte', { method: 'POST' });
@@ -499,7 +490,7 @@ document.addEventListener('DOMContentLoaded', async () => {initializeFromBackend
 });
 
 // If the color selection was changed, reflect the backend
-[theFrameColorOptionsContainer, theFramePortraitMatteSelect].forEach((element) => {
+[theFrameColorOptionsContainer].forEach((element) => {
     element.addEventListener('input', async () => {
         await updateBackendConfig()
     });

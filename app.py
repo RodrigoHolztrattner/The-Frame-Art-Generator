@@ -275,7 +275,7 @@ def try_upload_image(image_buffer):
         previous_mobile_content_ids = try_get_current_art_content(the_frame_connector)
 
         try:
-            target_content_id = the_frame_connector.art().upload(image_buffer.getvalue(), matte='none', portrait_matte='none')
+            target_content_id = the_frame_connector.art().upload(image_buffer.getvalue(), matte='none')
 
             log(LogType.VERBOSE, "The Frame", f"After upload content ID: {target_content_id}")
 
@@ -314,21 +314,15 @@ def try_change_matte(content_id = None):
 
     log(LogType.INFO, "The Frame", f"Changing matte for current selection: {content_id}")
 
-    if content_id and ((global_config.the_frame_matte and global_config.the_frame_matte != "none") or (global_config.the_frame_portrait_matte and global_config.the_frame_portrait_matte != "none")):
-        
+    if content_id and (global_config.the_frame_matte and global_config.the_frame_matte != "none"):
         # target_the_frame_matte = global_config.the_frame_matte
-        # target_the_frame_portrait_matte = global_config.the_frame_portrait_matte
 
         target_the_frame_matte = f"{global_config.the_frame_matte}_polar" if global_config.the_frame_matte != "none" else global_config.the_frame_matte
-        target_the_frame_portrait_matte = f"{global_config.the_frame_portrait_matte}_polar" if global_config.the_frame_portrait_matte != "none" else global_config.the_frame_portrait_matte
         
         try:
-            if target_the_frame_portrait_matte == "random":
-                target_the_frame_portrait_matte = random.choice([matte["matte_type"] for matte in the_frame_connector.art().get_matte_list()]) 
-        
-            log(LogType.INFO, f"The Frame", f"Matte selection: matte[{target_the_frame_matte}] | portrait[{target_the_frame_portrait_matte}]")
+            log(LogType.INFO, f"The Frame", f"Matte selection: matte[{target_the_frame_matte}]")
 
-            the_frame_connector.art().change_matte(content_id, target_the_frame_matte, target_the_frame_portrait_matte)
+            the_frame_connector.art().change_matte(content_id, matte_id = target_the_frame_matte)
 
             return True
         except Exception as e:
@@ -722,7 +716,7 @@ def mqtt_update_sensor(sensor_id, value):
     }
     if sensor_id in topic_map:
         mqtt_client.publish(topic_map[sensor_id], json.dumps(value))
-        print(f"[MQTT] - Updated {sensor_id}")
+        log(LogType.VERBOSE, "MQTT", f"Updated sensor with ID: {sensor_id}")
 
 def mqtt_handle_image_generation(text):
     global global_config
