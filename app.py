@@ -63,7 +63,7 @@ class LogType(Enum):
             return cls.WARNING
 
 def log(type: LogType, domain: str, message: str):
-    current_level = LogType.from_string(os.getenv('LOG_LEVEL', 'WARNING'))
+    current_level = LogType.from_string(os.getenv('LOG_LEVEL', 'VERBOSE'))
     
     if type.value >= current_level.value:
         colors = {

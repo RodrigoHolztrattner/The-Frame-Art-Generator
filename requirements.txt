@@ -2,6 +2,5 @@ colorama==0.4.6
 Flask==3.1.0
 ollama==0.4.6
 paho_mqtt==2.1.0
-samsungtvws[async,encrypted]
 websockets==14.1
 webuiapi==0.9.17

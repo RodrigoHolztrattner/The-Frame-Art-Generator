@@ -12,14 +12,15 @@ COPY requirements.txt .
 # Create config directory
 RUN mkdir -p /app/config
 
-# Install dependencies (uses a specific commit from samsungtvws (art-updates branch)
+# Install dependencies
 RUN apt-get update && \
     apt-get install -y git && \
     pip install --no-cache-dir -r requirements.txt && \
-    git clone https://github.com/xchwarze/samsung-tv-ws-api.git && \
+    git clone https://github.com/NickWaterton/samsung-tv-ws-api.git && \
     cd samsung-tv-ws-api && \
-    git checkout 2e6c8ad28c38cc28f053e7efa8f4905c8d304f8a && \
-    pip install "./[async,encrypted]" && \
+    git checkout 84f4d061c9a9549b04698ae908e82daca3ddfef1 && \
+    pip install "." && \
+    pip install "samsungtvws[async,encrypted]" && \
     cd .. && \
     rm -rf samsung-tv-ws-api && \
     apt-get remove -y git && \
