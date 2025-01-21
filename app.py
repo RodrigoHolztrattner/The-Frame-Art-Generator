@@ -49,11 +49,11 @@ mqtt_client = None
 init()
 
 class LogType(Enum):
-    VERBOSE = "VERBOSE"
-    INFO = "INFO"
-    WARNING = "WARNING" 
-    ERROR = "ERROR"
-    CRITICAL = "CRITICAL"
+    VERBOSE = 0
+    INFO = 1
+    WARNING = 2
+    ERROR = 3
+    CRITICAL = 4
 
     @classmethod
     def from_string(cls, level_str: str) -> 'LogType':
@@ -63,7 +63,7 @@ class LogType(Enum):
             return cls.WARNING
 
 def log(type: LogType, domain: str, message: str):
-    current_level = LogType.from_string(os.getenv('LOG_LEVEL', 'VERBOSE'))
+    current_level = LogType.from_string(os.getenv('LOG_LEVEL', 'WARNING'))
     
     if type.value >= current_level.value:
         colors = {
