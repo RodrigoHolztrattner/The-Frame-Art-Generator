@@ -151,6 +151,17 @@ def try_connect(force_refresh: bool):
 
     return ollama_connector.is_connected() and sd_connector.is_connected() and bool(not global_config.the_frame_ip or the_frame_connector)
 
+def reconnect():
+    try:
+        if try_connect(True):
+            refresh_periodic_generate()
+            return True
+        log(LogType.ERROR, "System", "reconnect() failed")
+        return False
+    except Exception as e:
+        log(LogType.ERROR, "System", f"reconnect() failed with exception: {e}")
+        return False
+
 def try_connect_mqtt(force_refresh: bool):
     global mqtt_client, global_config
 
@@ -227,6 +238,91 @@ def try_generate_image(use_mqtt_prompt=False):
     return sd_generate_response.image
 
 def try_upload_image(image_buffer):
+    global the_frame_connector, global_config
+    log(LogType.VERBOSE, "The Frame", f"try_upload_image() called with image of size {len(image_buffer.getbuffer())}")
+
+    if not the_frame_connector.art().supported():
+        log(LogType.VERBOSE, "The Frame", "Art mode not supported")
+        return None
+
+    if global_config.the_frame_force_art_mode and not the_frame_connector.art().get_artmode():
+        try:
+            log(LogType.INFO, "The Frame", "Forcing art mode")
+            the_frame_connector.art().set_artmode(True)
+        except Exception as e:
+            log(LogType.ERROR, "The Frame", f"Forcing art mode resulted in exception {e}")
+            return None
+        
+    def try_get_current_art_content(tv):
+        try:
+            return [item['content_id'] for item in tv.art().available() if item.get('content_type') == 'mobile']
+        except Exception as e:
+            return []
+
+    def try_delete_image_list(image_list):
+        try:
+            if image_list and global_config.the_frame_clear_old_art:
+                log(LogType.INFO, "The Frame", f"Filtering existing art to be deleted: {image_list}")
+                the_frame_connector.art().delete_list(image_list)
+        except Exception as e:
+            log(LogType.WARNING, "The Frame", f"Failed to delete old art, this shouldn't cause any issues but previous images will linger til next art update, exception: {e}")
+
+    def try_select_art_image(entry_id):
+        if entry_id:
+            try:
+                the_frame_connector.art().select_image(entry_id)
+                log(LogType.INFO, "The Frame", f"Image {entry_id} selected")
+            except Exception as e:
+                log(LogType.ERROR, "The Frame", f"Failed to select image {entry_id}, exception: {e}")
+                pass
+
+    def internal_upload_image():
+        time.sleep(2)
+        previous_art_content = try_get_current_art_content(the_frame_connector)
+        time.sleep(2)
+        try:
+            return the_frame_connector.art().upload(image_buffer.getvalue(), matte='none', portrait_matte='none'), previous_art_content
+        except Exception as e:
+            log(LogType.WARNING, "The Frame", f"Failed image upload with exception: {e}, but this could be a false negative, checking if upload succeeded")
+            time.sleep(2)
+            reconnect()
+            time.sleep(2)
+            current_art_content = try_get_current_art_content(the_frame_connector)
+            uploaded_art_content_list = [item for item in current_art_content if item not in previous_art_content]
+            if uploaded_art_content_list:
+                log(LogType.VERBOSE, "The Frame", f"Image upload returned exception: {e}, but upload did made it through, content id: {uploaded_art_content_list[0]}")
+                return uploaded_art_content_list[0], previous_art_content
+            else:
+                log(LogType.VERBOSE, "The Frame", f"Image upload returned exception: {e} and it was a true negative")
+                return None, []
+            
+    target_content_id = None
+    previous_art_list = []
+    max_attempts = int(os.getenv('MAX_UPLOAD_ATTEMPTS', 3))
+    for attempt in range(max_attempts):
+        result = internal_upload_image()
+        content_id, art_list = result
+        if content_id:
+            target_content_id = content_id
+            previous_art_list = art_list
+            break
+        else:
+            remaining = max_attempts - attempt - 1
+            log(LogType.WARNING, "The Frame", f"TV upload failed, remaining attempts: {remaining}")
+            time.sleep(4)
+
+    try_select_art_image(target_content_id)
+    try_delete_image_list(previous_art_list)
+
+    if target_content_id:
+        log(LogType.INFO, "The Frame", "TV upload done")
+        return target_content_id
+    else:
+        log(LogType.ERROR, "The Frame", "TV upload failed")
+        return None
+
+
+def try_upload_image_old(image_buffer):
     global the_frame_connector, global_config
 
     # tv.shortcuts().power()

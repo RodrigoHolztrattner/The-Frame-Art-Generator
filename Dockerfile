@@ -38,6 +38,7 @@ EXPOSE 5000
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
 ENV LOG_LEVEL=WARNING
+ENV MAX_UPLOAD_ATTEMPTS=3
 
 # Run the application
 CMD ["python", "-u", "-m", "flask", "run", "--host=0.0.0.0"]
